@@ -1,0 +1,12 @@
+\begin{tabular}{llrrrrrr}
+\toprule
+Dataset & Model & $\lambda$ & Train MSE & Test MSE & Gap & Stability & Test $R^2$ \\
+\midrule
+Synthetic & OLS & 0 & 0.244 $\pm$ 0.13 & 3.97 $\pm$ 1.1 & 3.73 $\pm$ 1.1 & 0.441 $\pm$ 0.12 & -- \\
+Synthetic & Ridge (best $\lambda$) & 0.014 & 0.383 $\pm$ 0.15 & 2.46 $\pm$ 0.58 & 2.08 $\pm$ 0.61 & 0.157 $\pm$ 0.029 & -- \\
+Diabetes ($n=50$) & OLS & 0 & 2.1e+03 $\pm$ 4.3e+02 & 3.82e+03 $\pm$ 6e+02 & 1.73e+03 $\pm$ 8.6e+02 & 2.75 $\pm$ 0.32 & 0.36 $\pm$ 0.11 \\
+Diabetes ($n=50$) & Ridge (best $\lambda$) & 0.39 & 2.38e+03 $\pm$ 4.1e+02 & 3.41e+03 $\pm$ 4.4e+02 & 1.03e+03 $\pm$ 7e+02 & 1.69 $\pm$ 0.19 & 0.43 $\pm$ 0.057 \\
+Diabetes ($n=300$) & OLS & 0 & 2.82e+03 $\pm$ 1.5e+02 & 3.05e+03 $\pm$ 3.2e+02 & 233 $\pm$ 4.7e+02 & 0.376 $\pm$ 0.016 & 0.49 $\pm$ 0.038 \\
+Diabetes ($n=300$) & Ridge (best $\lambda$) & 0.042 & 2.85e+03 $\pm$ 1.5e+02 & 3.03e+03 $\pm$ 3.2e+02 & 184 $\pm$ 4.7e+02 & 0.342 $\pm$ 0.015 & 0.49 $\pm$ 0.036 \\
+\bottomrule
+\end{tabular}

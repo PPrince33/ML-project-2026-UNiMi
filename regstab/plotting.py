@@ -15,14 +15,12 @@ Conventions shared by every figure (so the reader learns them once):
 import functools
 from pathlib import Path
 
-import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
+from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 
-matplotlib.use("Agg")  # file-only backend: works headless (tests, nbconvert)
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.colors import LinearSegmentedColormap, LogNorm  # noqa: E402
-
-from .experiments import mean_std  # noqa: E402
+from .experiments import mean_std
 
 # ---- palette (validated: adjacent CVD dE 24.7, normal-vision dE 33.6, >= 3:1 on white) ----
 BLUE = "#2a78d6"      # categorical slot 1: test error / main series
@@ -82,6 +80,24 @@ def _panels(n, width=3.5, height=2.8):
     return fig, axes[0]
 
 
+def _readable_log_y(ax):
+    """Label log-y ticks at 1, 2, 5 x 10^k as plain numbers, so values can be read
+    off even when the axis spans less than one decade."""
+    lo, hi = ax.get_ylim()
+    # 1-2-5 labels for narrow axes; only powers of ten when the axis spans > 2 decades.
+    subs = (1.0, 2.0, 5.0) if np.log10(hi / lo) <= 2 else (1.0,)
+    ax.yaxis.set_major_locator(LogLocator(base=10, subs=subs))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+
+
+def _legend_below(fig, axes, ncol):
+    """One shared legend under the panels, so it never covers the curves."""
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=ncol, bbox_to_anchor=(0.5, -0.02))
+    fig.tight_layout(rect=(0, 0.1, 1, 1))
+
+
 # ---------------------------------------------------------------------------
 # Figure 1
 # ---------------------------------------------------------------------------
@@ -93,15 +109,16 @@ def plot_stability_vs_lambda(results, path):
         lam = res["lambdas"]
         m = _band(ax, lam, res["ridge"]["mean_pred_change"], BLUE, "ridge")
         _ols_line(ax, res["ols"]["mean_pred_change"], REF, "OLS ($\\lambda=0$)")
-        # Theory reference c/lambda, anchored to the curve at the middle of the grid.
+        # Slope guide for the theoretical rate 1/lambda: a short segment (one decade
+        # either side of the grid's midpoint) through the curve. It shows the SLOPE the
+        # bound predicts; the bound is an upper bound, so the curve may decay slower.
         k = len(lam) // 2
-        ax.plot(lam, m[k] * lam[k] / lam, color=REF, linestyle=":", linewidth=1.2,
-                label="$\\propto 1/\\lambda$ (theory)")
+        seg = (lam >= lam[k] / 10) & (lam <= lam[k] * 10)
+        ax.plot(lam[seg], m[k] * lam[k] / lam[seg], color=REF, linestyle=":", linewidth=1.4,
+                label="slope of $1/\\lambda$ (theory)")
         ax.set(xscale="log", yscale="log", xlabel="$\\lambda$",
                ylabel="mean $|\\Delta$ prediction$|$", title=f"{name} ($n={res['n_train']}$)")
-        lo = min(m.min(), mean_std(res["ols"]["mean_pred_change"])[0]) / 3
-        hi = max(m.max(), mean_std(res["ols"]["mean_pred_change"])[0]) * 3
-        ax.set_ylim(lo, hi)   # keep the 1/lambda line from stretching the axis
+        _readable_log_y(ax)
         ax.legend(loc="lower left")
     fig.tight_layout()
     return _save(fig, path)
@@ -131,8 +148,10 @@ def plot_error_vs_lambda(results, path, bayes_mse):
                     fontsize=8, color=INK)
         ax.set(xscale="log", yscale="log", xlabel="$\\lambda$", ylabel="MSE",
                title=f"{name} ($n={res['n_train']}$)")
-        ax.legend(loc="best", ncol=1)
-    fig.tight_layout()
+        _readable_log_y(ax)
+    # The first panel may have the extra Bayes-error entry; use the panel with most entries.
+    richest = max(axes, key=lambda a: len(a.get_legend_handles_labels()[0]))
+    _legend_below(fig, [richest], ncol=5)
     return _save(fig, path)
 
 
@@ -154,7 +173,7 @@ def plot_stability_vs_gap(results, path):
         og, _ = mean_std(res["ols"]["gap"])
         ax.scatter([ox], [og], marker="X", s=60, color=REF, edgecolors="white",
                    linewidths=0.8, zorder=4, label="OLS")
-        ax.set(xscale="log", xlabel="mean $|\\Delta$ prediction$|$ (less = more stable)",
+        ax.set(xlabel="mean $|\\Delta$ prediction$|$ (less = more stable)",
                ylabel="gap = test MSE $-$ train MSE", title=f"{name} ($n={res['n_train']}$)")
         ax.legend(loc="upper left")
         fig.colorbar(sc, ax=ax, label="$\\lambda$", pad=0.02)
@@ -182,14 +201,14 @@ def plot_size_sweep(size_res, d, path):
         ax.annotate(f"$n = d = {d}$", (d, 1), xycoords=("data", "axes fraction"),
                     xytext=(3, -10), textcoords="offset points", fontsize=8, color=MUTED)
         ax.set(xscale="log", yscale="log", xlabel="training-set size $n$", ylabel=ylabel)
+        _readable_log_y(ax)
     # 1/n reference anchored at the largest n of the strongest-regularised curve.
     m_last, _ = mean_std(size_res["ridge"]["mean_pred_change"][:, :, -1])
     axes[0].plot(n, m_last[-1] * n[-1] / n, color=REF, linestyle=":", linewidth=1.2,
                  label="$\\propto 1/n$ (theory)")
     axes[0].set_title("Stability vs $n$ (synthetic, $d=%d$)" % d)
     axes[1].set_title("Test error vs $n$")
-    axes[0].legend(loc="lower left", fontsize=7)
-    fig.tight_layout()
+    _legend_below(fig, axes, ncol=6)
     return _save(fig, path)
 
 
@@ -207,6 +226,7 @@ def plot_contrast(res_small, res_full, path):
             _band(ax, res["lambdas"], res["ridge"][metric], color, f"ridge, {lab}")
             _ols_line(ax, res["ols"][metric], color, f"OLS, {lab}")
         ax.set(xscale="log", yscale="log", xlabel="$\\lambda$", ylabel=ylabel)
+        _readable_log_y(ax)
     axes[0].set_title("Stability: small vs large training set")
     axes[1].set_title("Test error: small vs large training set")
     axes[0].legend(loc="lower left", fontsize=7)
@@ -229,6 +249,7 @@ def plot_metric_agreement(results, path):
             _band(ax, res["lambdas"], res["ridge"][metric], BLUE, "ridge")
             _ols_line(ax, res["ols"][metric], REF, "OLS")
             ax.set(xscale="log", yscale="log", xlabel="$\\lambda$", ylabel=ylabel)
+            _readable_log_y(ax)
             if r == 0:
                 ax.set_title(f"{name} ($n={res['n_train']}$)")
             ax.legend(loc="lower left")

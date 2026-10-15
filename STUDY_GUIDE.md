@@ -10,7 +10,7 @@ Everything you need to explain this project at the oral exam, in plain language.
 >
 > I implemented ridge and OLS from scratch, measured stability by literally refitting the model *n* times with each training point removed, and compared it with the train/test errors on a synthetic dataset and on Diabetes.
 >
-> **Results:** (1) Regularization improves stability by up to 6× (synthetic) and the generalization gap shrinks with it. The worst-case stability metric and the gap are almost perfectly rank-correlated (Spearman 0.996–1.0). (2) Stability is **not** the same as low test error: the test error is U-shaped in λ, because a very stable model can be uniformly bad (underfitting). (3) The *average* prediction change is itself U-shaped, because the unpenalized intercept and underfitting residuals put a floor under it. (4) At fixed λ, stability improves like 1/n, as the theory predicts.
+> **Results:** (1) Regularization improves stability by up to 6× (synthetic) and the generalization gap shrinks with it. Across all 45 (n, λ) settings of the size sweep, stability ranks the gap almost perfectly (Spearman 0.98–0.99). Along λ alone the two curves simply move together, which is consistent with the theory but a weaker test. (2) Stability is **not** the same as low test error: the test error is U-shaped in λ, because a very stable model can be uniformly bad (underfitting). (3) The *average* prediction change is itself U-shaped, because the unpenalized intercept and underfitting residuals put a floor under it. (4) At fixed λ, stability improves like 1/n, as the theory predicts.
 
 ---
 
@@ -22,7 +22,7 @@ Everything you need to explain this project at the oral exam, in plain language.
 
 ### 2.2 Stability (the paper's idea)
 - S = {z₁,…,zₙ}; S^{\i} = S with point i removed. f_S and f_{S\i} are the functions learned on the two sets.
-- **Uniform stability β**: for every i and every input x, |ℓ(f_S, z) − ℓ(f_{S\i}, z)| ≤ β. It is a *worst case* over points and inputs.
+- **Uniform stability β**: for every training set S of size n, every removed index i and every example z = (x, y), |ℓ(f_S, z) − ℓ(f_{S\i}, z)| ≤ β. It is a *worst case* over training sets, removed points and examples.
 - **Main theorem (informally):** with probability ≥ 1 − δ,
   R(f_S) ≤ R̂(f_S) + 2β + (4nβ + M)·√(ln(1/δ) / (2n)),
   where M bounds the loss. If β = O(1/n), the right-hand side converges to the training error, so the gap goes to 0. (Check the exact constants in the paper before quoting them.)
@@ -34,7 +34,7 @@ Ridge with our normalization minimizes (1/n)‖y − Zw‖² + λ‖w‖², whos
   w = (ZᵀZ + nλI)⁻¹ Zᵀy = A⁻¹ Zᵀy.
 
 - ZᵀZ is positive semidefinite (eigenvalues ≥ 0), so **every eigenvalue of A is ≥ nλ**, hence ‖A⁻¹‖ ≤ 1/(nλ).
-- Removing point i is a rank-one change of A. The Sherman–Morrison formula gives the exact identity (for a fixed penalty):
+- Removing point i is a rank-one change of A. The Sherman–Morrison formula gives an exact identity, valid for a **fixed** penalty and **fixed** scaling (our refits re-standardise on S∖i and use (n−1)λ, so for us it holds approximately; notebook §6 measures both factors directly):
 
   **w_S − w_{S\i} = A⁻¹ zᵢ · (yᵢ − f_{S\i}(xᵢ))**
 
@@ -56,7 +56,7 @@ Large λ means very stable, but the model is pulled towards "predict the mean", 
 | **λ normalization** (1/n)‖·‖² + λ‖w‖² ⇒ penalty nλ | Same convention as the paper, so λ means the same thing for any n and the 1/(λn) rate is directly comparable. |
 | **Standardization inside `fit`** | The learning algorithm is the whole pipeline. In a leave-one-out refit the mean/std are recomputed without point i; otherwise the removed point would still leak in through the scaling statistics. It also guarantees no test-set leakage. |
 | **Unpenalized intercept** (centre y) | Penalizing the intercept would pull predictions towards 0, which is meaningless for a target around 150. |
-| **Remove-one, brute-force refits** | The literal definition, easy to verify. Checked against the exact Sherman–Morrison formula in the tests (to 1e-10). |
+| **Remove-one, brute-force refits** | The literal definition, easy to verify. The core ridge solver's leave-one-out refits are checked against the exact Sherman–Morrison formula (fixed penalty, to 1e-10); the full `loo_stability` pipeline is checked on a hand-computed example. |
 | **Fixed test set per repetition** | f_S and every f_{S\i} are compared on the same points, so differences come only from removing zᵢ. |
 | **Three metrics** | mean \|Δprediction\| (average stability), max \|Δprediction\| (worst case, closest to the paper's uniform β), mean \|Δloss\| (the paper's bounds are on the loss). |
 | **Synthetic: d = 30, ρ = 0.9, n = 40** | Correlated features and n just above d give an ill-conditioned ZᵀZ, the regime where regularization matters. Known Bayes error σ² = 1. |
@@ -75,7 +75,7 @@ Large λ means very stable, but the model is pulled towards "predict the mean", 
 - Small λ: ridge = OLS (mean \|Δpred\| 0.44 synthetic, 2.75 Diabetes).
 - It decreases to a minimum near λ ≈ 3.6: 0.073 (6× better than OLS) and 1.15 (2.4× better).
 - Then it **rises slightly** (0.092 and 1.30 at λ = 100). See §5.1.
-- The decay is much slower than the 1/λ slope guide (fitted log-log slope ≈ −0.18 synthetic, −0.11 Diabetes). The theory gives an *upper bound*, and it is not tight here.
+- The decay is much slower than the 1/λ slope guide: fitted log-log slope ≈ −0.18 (synthetic) and −0.11 (Diabetes), fitted over λ ∈ [10⁻³, 3.6], i.e. from where ridge departs from OLS to the minimum. See §5.3 for why.
 
 **Figure 2 – errors vs λ.**
 - Training error grows monotonically with λ; test error is **U-shaped**.
@@ -84,9 +84,10 @@ Large λ means very stable, but the model is pulled towards "predict the mean", 
 - Best ridge beats OLS in 18/20 repetitions (synthetic) and 15/20 (Diabetes).
 
 **Figure 3 – stability vs gap.**
-- More stable means a smaller gap. Spearman rank correlation between mean \|Δpred\| and the gap across λ: 0.94 (synthetic), 0.97 (Diabetes).
-- It is exactly 1.0 on the part of the curve before the stability minimum.
-- With the **worst-case** metric (max \|Δpred\|) the correlation is 0.996 / 1.000: the uniform-stability proxy tracks the gap almost perfectly, as the theorem suggests.
+- Along the λ curve, more stable goes with a smaller gap. Spearman between mean \|Δpred\| and the gap across λ: 0.94 (synthetic), 0.97 (Diabetes); with the worst-case metric 0.996 / 1.000.
+- **Caution, a likely oral question:** both quantities move monotonically with λ over most of the grid, and any two monotone functions of the same parameter have a rank correlation of ±1. So these values are *consistent with* the theory but do not really test it.
+- **The stronger check** is the size sweep: stability and gap vary with *two* parameters (n and λ, 45 configurations), so co-monotonicity is not automatic, and the Spearman is still 0.989 (mean), 0.985 (max), 0.983 (loss).
+- **Across repetitions at a fixed λ** there is *no* positive relationship (median Spearman −0.47 synthetic, −0.55 Diabetes for the mean metric). That is not a contradiction: the theorem bounds the *expected* gap of an algorithm and says nothing about which individual random draw has a larger gap, and single-draw gaps are very noisy.
 
 **Figure 4 – dataset size (synthetic).**
 - At fixed λ, stability falls roughly like 1/n: fitted log-log slopes for n ≥ 50 are −1.03 (λ = 1), −1.10 (λ = 0.1), −1.23 (λ = 0.01), −1.35 (λ = 0.001). Strongly regularized ridge matches the 1/n rate best.
@@ -108,20 +109,24 @@ Large λ means very stable, but the model is pulled towards "predict the mean", 
 
 ### 5.1 Why is the *average* prediction change U-shaped?
 From §2.3, the change is **influence × leave-one-out residual**.
-- **Influence** (how much point i can move the model) decreases monotonically with λ. Checked numerically on one synthetic draw: 0.23 to 0.025.
-- It cannot go below **1/n**: the intercept is not penalized, and removing a point always shifts the mean of y by (ȳ − yᵢ)/(n−1).
-- The **leave-one-out residual** is small when the model fits well, and large when it underfits (λ large). On the same draw: 2.4 at λ = 1e-4, 1.3 at 0.1, 3.6 at 100.
+- **Influence** (how much point i can move the model, measured as mean\|Δpred\| / mean\|residual\|) decreases monotonically with λ: 0.236 at λ = 10⁻⁴ down to 0.0252 at λ = 100 (repetition 1 of run A, notebook §6).
+- On average it cannot go much below **1/n** (= 0.025 here): the intercept is not penalized, and removing a point always shifts the mean of y by (ȳ − yᵢ)/(n−1), which is exactly 1/n times the mean model's leave-one-out residual.
+- The **leave-one-out residual** is small when the model fits well, and large when it underfits (λ large). Same draw: 2.24 at λ = 10⁻⁴, 1.31 at 0.1, 3.71 at 100.
 - Their product is U-shaped. At λ → ∞ the stability converges exactly to mean\|ȳ − ȳ₋ᵢ\|, which a unit test checks.
-- **The max metric stays monotone** because the worst-case point is a high-leverage point, whose influence λ keeps cutting.
+- **The max metric stays monotone.** A plausible explanation (not verified separately): the worst case is driven by high-leverage points, whose influence λ keeps cutting, rather than by large residuals.
 
 ### 5.2 Stability ≠ good test error
 The most stable models (large λ) have the smallest gap but the **worst** test error. A stable algorithm guarantees "test ≈ train", not "test is low". Both terms of the trade-off matter.
 
 ### 5.3 The bound's rate is not attained in λ
-The observed decay in λ (slope ≈ −0.1 to −0.2) is much flatter than 1/λ. The theorem is a worst-case upper bound; real data is far from the worst case. In n, by contrast, the 1/n rate is matched well.
+The observed decay in λ (slope ≈ −0.1 to −0.2) is much flatter than 1/λ. Two different reasons:
+- **Small to medium λ:** ‖A⁻¹‖ = 1/(μ_min + nλ), where μ are the eigenvalues of ZᵀZ. A direction only enters the "1/(nλ)" regime once nλ exceeds its eigenvalue. The eigenvalues span roughly 0.1 to several hundred here, so the pure 1/λ regime would only start around λ ≳ 10. Below that, the bound is loose: real data is not the worst case.
+- **The plateau is not just looseness.** A curve that stops decreasing eventually exceeds *any* C/λ bound. That means the theorem's assumptions are not met: it assumes that everything is penalized (our intercept is not) and that the loss is bounded (squared loss with Gaussian noise is not).
+- In n, by contrast, the 1/n rate is matched well.
 
 ### 5.4 Other limitations
-- Stability is measured on a finite test set, not as a sup over all inputs, so we only estimate β.
+- Stability is measured on a finite test set, not as a sup over all inputs: the max metric is a *lower* estimate of β.
+- The theorem's assumptions are not fully met: the intercept is unpenalized and squared loss with Gaussian noise is unbounded.
 - Remove-one only; the paper also studies replace-one.
 - The "best λ" in the table is chosen on the test set. That is descriptive, not a proper model-selection procedure (which would use cross-validation).
 - Diabetes is small; the n = 50 subsample is our choice, and we show the n = 300 contrast.
@@ -140,13 +145,14 @@ The observed decay in λ (slope ≈ −0.1 to −0.2) is much flatter than 1/λ.
 7. **Why standardize inside the model?** Because the learning algorithm includes preprocessing. Recomputing the statistics without point i avoids leaking it back in, and fitting them on training data only avoids test leakage.
 8. **Why is λ multiplied by n?** We average the loss (1/n), as in the paper. Setting the gradient to zero gives ZᵀZ + nλI. This keeps λ comparable across training-set sizes.
 9. **Why did you subsample Diabetes to 50 points?** With 300 points and 10 features, OLS is already well-conditioned and the curves are flat (Figure 5). A small sample shows the regime the paper is about. The 300 run is reported as the contrast.
-10. **Your stability curve goes back up at large λ. Is that a bug?** No. The change equals influence × leave-one-out residual. The influence keeps falling but is floored at 1/n by the unpenalized intercept, while the residual grows when the model underfits. The limit value mean\|ȳ − ȳ₋ᵢ\| is verified by a unit test, and the worst-case metric is monotone as expected.
+10. **Your stability curve goes back up at large λ. Is that a bug?** No. The change equals influence × leave-one-out residual. The change is (approximately, exactly for a fixed penalty and scaling) influence × leave-one-out residual. The influence keeps falling but, on average, is floored near 1/n by the unpenalized intercept, while the residual grows when the model underfits. The limit value mean\|ȳ − ȳ₋ᵢ\| is verified by a unit test, and the worst-case metric is monotone as expected.
 11. **Does more stability always mean better test error?** No. Test error is U-shaped. Stability controls the gap, not the bias. Very large λ is very stable but underfits.
 12. **What would happen with more data?** Stability improves like 1/n (Figure 4, slopes ≈ −1.0 to −1.35), OLS becomes stable too, and the benefit of regularization shrinks.
-13. **How do you know your implementation is correct?** 32 unit tests, including: ridge matches the normal equations; λ → 0 equals OLS; λ → ∞ predicts the mean; OLS recovers the true weights without noise; brute-force leave-one-out matches Sherman–Morrison to 1e-10; a hand-computed stability example; no-leakage and reproducibility checks.
+13. **How do you know your implementation is correct?** 41 unit tests, including: ridge matches the normal equations; λ → 0 equals OLS; λ → ∞ predicts the mean; OLS recovers the true weights without noise; the core ridge solver's leave-one-out refits match Sherman–Morrison to 1e-10 (fixed penalty); a hand-computed example for the full stability pipeline; no-leakage tests on test targets *and* features (one verified by injecting a leak); a constant-feature test; reproducibility checks.
 14. **Why `solve` instead of `inv`?** Solving the system directly is cheaper and more accurate than forming the inverse and multiplying.
 15. **What are the limitations?** We estimate stability on a test sample rather than as a supremum, use only remove-one and L2, pick the "best λ" on the test set (descriptive only), and the decay in λ is much slower than the bound's rate.
-16. **What would you do next?** Replace-one stability, L1 vs L2 (lasso is expected to be less stable because its selected features flip), varying d, and choosing λ by cross-validation.
+16. **Your Spearman across λ is 1.0. Isn't that trivial?** Partly, yes: two quantities that both decrease with λ always have rank correlation 1. That's why I also pooled the 45 (n, λ) settings of the size sweep, where two parameters vary and the correlation is still 0.98–0.99. Across repetitions at a fixed λ there is no positive relationship, but the theorem bounds the expected gap, not individual draws.
+17. **What would you do next?** Replace-one stability, L1 vs L2 (lasso is expected to be less stable because its selected features flip), varying d, and choosing λ by cross-validation.
 
 ---
 

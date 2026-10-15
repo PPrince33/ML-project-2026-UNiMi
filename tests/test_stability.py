@@ -93,6 +93,20 @@ def test_test_targets_do_not_affect_fit():
     assert a["test_mse"] != b["test_mse"]
 
 
+def test_test_features_do_not_affect_fit():
+    # No leakage (spec section 8): perturbing the test FEATURES leaves everything that
+    # depends only on the training data unchanged (the fitted model, hence train_mse).
+    X, y, Xte, yte = synthetic(40)
+    a = loo_stability(lambda: RidgeRegression(0.1), X, y, Xte, yte)
+    b = loo_stability(lambda: RidgeRegression(0.1), X, y, Xte * 3.0 + 5.0, yte)
+    assert a["train_mse"] == b["train_mse"]
+    assert a["test_mse"] != b["test_mse"]
+    m1 = RidgeRegression(0.1).fit(X, y)
+    m2 = RidgeRegression(0.1).fit(X, y)
+    m2.predict(Xte * 3.0 + 5.0)   # predicting must not modify the fitted parameters
+    assert np.array_equal(m1.w_, m2.w_) and np.array_equal(m1.mu_, m2.mu_)
+
+
 def test_large_lambda_plateau_is_positive():
     # With w ~ 0 only the unpenalised intercept mean(y) moves when a point is
     # removed, so stability plateaus at mean_i |ybar - ybar_{-i}| > 0.

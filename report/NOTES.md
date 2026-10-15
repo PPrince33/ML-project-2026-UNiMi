@@ -1,11 +1,11 @@
 # Notes for the report (bullets only: write the prose yourself)
 
-All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where given). They come from the committed run of `notebooks/assignment3.ipynb`. Re-check them there if you change anything. Section numbers match `main.tex`. For explanations in plain language, see `STUDY_GUIDE.md`.
+All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where given). Every number below is printed by `notebooks/assignment3.ipynb` (summary table in §5, everything else in §6 "Every statistic quoted"). Re-check them there if you change anything. Section numbers match `main.tex`. For explanations in plain language, see `STUDY_GUIDE.md`.
 
 ## Abstract
 - Question: does stronger L2 regularization make a learner more stable, and does stability come with better generalization?
 - Method: ridge vs OLS from scratch; leave-one-out refits; 3 stability metrics; synthetic (d=30, n=40) and Diabetes (n=50; contrast n=300); 20 repetitions; dataset-size extension.
-- Findings: (1) stability improves with λ up to ~6× (synthetic) and the gap shrinks with it (worst-case metric vs gap: Spearman ≈ 1); (2) the test error is U-shaped, so stable ≠ accurate; (3) at fixed λ stability decays ≈ 1/n; (4) with plenty of data (Diabetes n=300) regularization barely matters.
+- Findings: (1) stability improves with λ up to ~6× (synthetic) and the gap shrinks with it (over the 45 (n, λ) settings of the size sweep, stability ranks the gap with Spearman 0.98–0.99); (2) the test error is U-shaped, so stable ≠ accurate; (3) at fixed λ stability decays ≈ 1/n; (4) with plenty of data (Diabetes n=300) regularization barely matters.
 
 ## 1 Introduction
 - Classical bounds: complexity of the hypothesis class (VC dimension, Rademacher complexity). Bousquet & Elisseeff: properties of the *algorithm* instead.
@@ -14,13 +14,13 @@ All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where 
 
 ## 2 Background
 ### 2.1 Stability
-- Notation S, S^{\i}; uniform stability β = sup over i and z of |ℓ(f_S,z) − ℓ(f_{S\i},z)|.
+- Notation S, S^{\i}; uniform stability β = sup over training sets S of size n, removed indices i and examples z = (x, y) of |ℓ(f_S,z) − ℓ(f_{S\i},z)|.
 - Bound: R ≤ R̂ + 2β + (4nβ + M)√(ln(1/δ)/(2n)). Verify the constants and the theorem number in the paper before writing them.
 - Consequence: β = O(1/n) ⇒ gap → 0.
 ### 2.2 Ridge
 - Objective (1/n)Σ(yᵢ − wᵀzᵢ)² + λ‖w‖² (the paper's normalization) ⇒ w = (ZᵀZ + nλI)⁻¹Zᵀy.
 - Eigenvalues of ZᵀZ + nλI are ≥ nλ ⇒ ‖A⁻¹‖ ≤ 1/(nλ).
-- Sherman–Morrison: w_S − w_{S\i} = A⁻¹zᵢ · rᵢ^{LOO} ⇒ influence × leave-one-out residual ⇒ O(1/(λn)).
+- Sherman–Morrison: w_S − w_{S\i} = A⁻¹zᵢ · rᵢ^{LOO}, exact for a fixed penalty and fixed scaling (our refits re-standardise and use (n−1)λ, so approximate) ⇒ influence × leave-one-out residual ⇒ O(1/(λn)).
 - OLS = λ=0; unstable when ZᵀZ has small eigenvalues.
 
 ## 3 Datasets
@@ -35,7 +35,7 @@ All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where 
 - Standardization + centring inside `fit` from the data given; unpenalized intercept = ȳ; zero-std features scaled by 1.
 - LOO: n brute-force refits per (repetition, λ), fixed test set; ~400k fits in total, ~90 s.
 - Metrics: mean |Δpred| (average stability, main), max |Δpred| (worst case, uniform-β proxy), mean |Δloss| (squared loss).
-- Testing: 32 pytest tests, e.g. normal equations; λ→0 = OLS; λ→∞ = mean; noise-free recovery; min-norm d>n; LOO vs Sherman–Morrison (1e-10); hand-computed MeanModel example; leakage; reproducibility; large-λ plateau value.
+- Testing: 41 pytest tests, e.g. normal equations; λ→0 = OLS; λ→∞ = mean; noise-free recovery; min-norm d>n; core solver's LOO vs Sherman–Morrison (fixed penalty, 1e-10); hand-computed MeanModel example for the full pipeline; leakage on test targets and features (verified by injecting a leak); constant feature in train but not test; reproducibility; large-λ plateau value; influence × residual decomposition.
 
 ## 5 Experimental setup
 - λ grid: 30 log-spaced values, 1e-5 … 1e2; OLS separately.
@@ -48,7 +48,7 @@ All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where 
 - Small λ ≡ OLS: 0.441 (synthetic), 2.75 (Diabetes).
 - Minimum at λ ≈ 3.6: 0.073 (6.1× better) and 1.15 (2.4× better).
 - Then a slight rise to 0.092 / 1.30 at λ=100 (U-shape, explained in the Discussion).
-- Decay slope on log-log axes ≈ −0.18 / −0.11, much flatter than 1/λ.
+- Decay slope on log-log axes ≈ −0.18 / −0.11 (fitted over λ ∈ [10⁻³, 3.6]), much flatter than 1/λ.
 ### Figure 2 (errors vs λ)
 - Train error increases monotonically; test error is U-shaped.
 - Synthetic: best λ = 0.014, test 2.46 ± 0.58 vs OLS 3.97 ± 1.12; train 0.38 vs 0.24; Bayes 1. λ=100: test 21.9.
@@ -56,9 +56,10 @@ All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where 
 - Best ridge beats OLS in 18/20 (synthetic) and 15/20 (Diabetes) repetitions.
 ### Figure 3 (stability vs gap)
 - Gap: synthetic OLS 3.73 → 1.42 at λ=100; Diabetes 1 727 → 315.
-- Spearman(mean |Δpred|, gap) over λ: 0.94 synthetic, 0.97 Diabetes; exactly 1.0 up to the stability minimum.
-- Spearman(max |Δpred|, gap): 0.996 synthetic, 1.000 Diabetes (both n): the worst-case metric tracks the gap best, consistent with the theorem using uniform stability.
-- Spearman(mean |Δloss|, gap): 0.68 synthetic, 0.92 Diabetes.
+- Spearman with the gap, across λ: mean |Δpred| 0.94 / 0.97; max |Δpred| 0.996 / 1.000; mean |Δloss| 0.68 / 0.92 (synthetic / Diabetes n=50).
+- Caveat: stability and gap are both (nearly) monotone in λ, so the across-λ rank correlation is partly automatic: consistent with the theory, weak as a test.
+- Stronger check (size sweep, 45 (n, λ) configurations, two parameters vary): Spearman 0.989 (mean), 0.985 (max), 0.983 (loss).
+- Across repetitions at fixed λ: no positive relation (median −0.47 synthetic, −0.55 Diabetes, mean metric). The theorem bounds the expected gap, not individual draws; single-draw gaps are noisy.
 ### Figure 4 (dataset size)
 - Fitted log-log slope of stability vs n (n ≥ 50): λ=1 −1.03; λ=0.1 −1.10; λ=0.01 −1.23; λ=0.001 −1.35; OLS −1.38. The theory predicts −1 at fixed λ.
 - OLS: 1.26 at n=35 (≈ d), 0.43 at n=40, 0.0076 at n=500. Test MSE OLS 10.0 → 1.06 (Bayes 1).
@@ -76,15 +77,15 @@ All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where 
 ## 7 Discussion
 Positive
 - RQ1/RQ2 confirmed in the regime the theory covers: more λ ⇒ more stable ⇒ smaller gap, on both datasets.
-- The worst-case (uniform) metric is monotone and almost perfectly rank-correlated with the gap.
+- The worst-case (uniform-β proxy) metric is monotone in λ; stability ranks the gap almost perfectly across the 45 (n, λ) settings (Spearman ≈ 0.98–0.99).
 - 1/n rate in the size sweep reproduced (slopes ≈ −1 to −1.35).
 - Real data (Diabetes n=50) behaves like the synthetic data.
 Negative / nuances
 - Stability ≠ low test error: large λ is most stable but underfits (test MSE ×9 synthetic at λ=100).
-- Average stability is U-shaped: influence × residual; influence floored at 1/n by the unpenalized intercept; residual grows when underfitting. Plateau = mean |ȳ − ȳ₋ᵢ| (unit-tested). Not covered by the theorem's penalized-everything setting.
-- The decay in λ is much slower than the 1/λ rate: the bound is a loose worst-case upper bound.
+- Average stability is U-shaped: ≈ influence × residual; measured on run A, repetition 1: influence 0.236 → 0.0252 (≈ 1/n = 0.025, floor from the unpenalized intercept), |LOO residual| 2.24 → 1.31 (λ=0.1) → 3.71 (λ=100, underfitting). Plateau = mean |ȳ − ȳ₋ᵢ| (unit-tested). Not covered by the theorem's penalized-everything setting.
+- The decay in λ is much slower than 1/λ: (a) for small/medium λ the bound is loose, since a direction only enters the 1/(nλ) regime once nλ exceeds its eigenvalue of ZᵀZ (eigenvalues up to several hundred ⇒ λ ≳ 10); (b) the plateau would eventually exceed any C/λ bound, i.e. the theorem's assumptions are not met (unpenalized intercept, unbounded squared loss with Gaussian noise).
 - With plenty of data (n=300) regularization changes test error negligibly (11/20).
-- Limitations: stability estimated on a finite test set (not a sup); remove-one only; best λ chosen on the test set; small dataset; L2 only.
+- Limitations: stability estimated on a finite test set (the max is a lower estimate of β, not a sup); theorem assumptions not fully met (unpenalized intercept, unbounded loss); remove-one only; best λ chosen on the test set; small dataset; L2 only.
 
 ## 8 Conclusion
 - Regularization buys stability, and stability controls the generalization gap, but stability alone does not choose λ: the best λ balances stability against bias.

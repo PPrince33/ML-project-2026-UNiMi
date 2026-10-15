@@ -45,6 +45,7 @@
 %   \hat w = \arg\min_w \frac{1}{n}\sum_{i=1}^n (y_i - w^\top z_i)^2 + \lambda\|w\|^2
 %          = (Z^\top Z + n\lambda I)^{-1} Z^\top y
 % \end{equation}
+% (exact for a FIXED penalty and FIXED scaling; approximate for our refits)
 % \begin{equation}
 %   w_S - w_{S^{\setminus i}} = (Z^\top Z + n\lambda I)^{-1} z_i \,\bigl(y_i - f_{S^{\setminus i}}(x_i)\bigr)
 % \end{equation}

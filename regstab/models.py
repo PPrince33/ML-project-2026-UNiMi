@@ -100,15 +100,20 @@ class _LinearModel:
         # 1) Standardisation statistics, from THIS data only (no leakage).
         self.mu_ = X.mean(axis=0)
         scale = X.std(axis=0)            # population std (ddof=0)
-        # A constant column has std 0; dividing by 0 would give NaN. We use 1
-        # instead: the centred column is then all zeros and simply gets no weight.
-        scale[scale == 0] = 1.0
+        # A constant column has std 0, but in floating point a constant like 0.1
+        # gives std ~1e-17 instead of exactly 0, and dividing by it would blow up
+        # any test value that differs from the constant. So "constant" means: std
+        # tiny relative to the feature's magnitude. For such columns we use scale 1
+        # and force the centred column to exactly 0, so it gets no weight.
+        constant = scale <= 1e-12 * np.maximum(1.0, np.abs(self.mu_))
+        scale[constant] = 1.0
         self.scale_ = scale
 
         # 2) Centre the target; its mean becomes the (unpenalised) intercept.
         self.y_mean_ = y.mean()
 
         Z = (X - self.mu_) / self.scale_
+        Z[:, constant] = 0.0
         t = y - self.y_mean_
 
         # 3) Solve for the weights (ridge or OLS, decided by the subclass).

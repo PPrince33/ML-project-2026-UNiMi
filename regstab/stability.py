@@ -10,9 +10,10 @@ individual points, and its training error must be close to its test error.
 
 For a training set S = {z_1, ..., z_n} and S^{\\i} = S without z_i, the paper
 defines (among others):
-  * uniform stability beta:  sup over i and over ALL inputs x of
-        |f_S(x) - f_{S\\i}(x)|  (or of the loss difference)
-    -> the generalisation gap is bounded by roughly 2*beta + O(1/sqrt(n)).
+  * uniform stability beta:  sup over training sets S, removed indices i and ALL examples z of
+        |loss(f_S, z) - loss(f_{S\\i}, z)|  (or of the prediction difference)
+    -> the generalisation gap is bounded by 2*beta + (4*n*beta + M)*sqrt(ln(1/delta)/(2n));
+       when beta = O(1/n) this is O(1/sqrt(n)). (Check the exact constants in the paper.)
     For ridge regression beta <= C / (lam * n).
   * weaker average notions (hypothesis stability), where the change is
     averaged over i and over the data distribution instead of maximised.

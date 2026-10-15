@@ -82,5 +82,19 @@ def test_constant_feature_is_finite(data):
     assert np.all(np.isfinite(q))
 
 
+def test_constant_non_representable_feature_is_ignored(data):
+    # A feature constant in the TRAINING set (e.g. binary 'sex' in a small subsample) but
+    # varying in the test set. A constant 0.1 has a float std of ~3e-17, not exactly 0;
+    # it must still be treated as constant, so it gets no weight and the predictions
+    # equal those of the model trained without that column.
+    X, y, Xte = data
+    Xc, Xtec = X.copy(), Xte.copy()
+    Xc[:, 2] = 0.1
+    Xtec[:, 2] = np.where(np.arange(len(Xte)) % 2 == 0, 0.1, 0.2)
+    with_col = RidgeRegression(0.1).fit(Xc, y).predict(Xtec)
+    without = RidgeRegression(0.1).fit(np.delete(X, 2, 1), y).predict(np.delete(Xte, 2, 1))
+    assert np.allclose(with_col, without)
+
+
 def test_mse():
     assert mse(np.array([1.0, 2.0]), np.array([1.0, 4.0])) == 2.0

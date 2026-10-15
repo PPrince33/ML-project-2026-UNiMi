@@ -29,6 +29,7 @@ The notebook regenerates every figure in `figures/` and the table `figures/summa
 | `regstab/stability.py` | `loo_stability`: leave-one-out refits and the three stability metrics |
 | `regstab/experiments.py` | λ sweep and dataset-size sweep over 20 repetitions |
 | `regstab/plotting.py` | Figures 1–6 and the summary table |
+| `regstab/analysis.py` | the statistics quoted in the report (rank correlations, fitted slopes, influence × residual) |
 | `tests/` | pytest suite (model maths, LOO correctness, leakage, reproducibility) |
 | `notebooks/assignment3.ipynb` | runs everything and explains each figure |
 | `report/` | LaTeX report |

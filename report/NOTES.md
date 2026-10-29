@@ -1,4 +1,4 @@
-# Notes for the report (bullets only: write the prose yourself)
+# Notes for the report
 
 All numbers: seed 2026, R = 20 repetitions, mean over repetitions (± std where given). Every number below is printed by `notebooks/assignment3.ipynb` (summary table in §5, everything else in §6 "Every statistic quoted"). Re-check them there if you change anything. Section numbers match `main.tex`. For explanations in plain language, see `STUDY_GUIDE.md`.
 
